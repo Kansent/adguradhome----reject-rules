@@ -31,14 +31,14 @@ jobs:
       - name: Run conversion
         run: python convert.py
 
-      - name: Pull latest changes and commit
+      - name: Fetch and merge remote changes
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin main   # 拉取远程仓库的更新
-          git pull --rebase origin main  # 拉取并将本地更改与远程更改合并（避免合并提交）
+          git fetch origin main  # 拉取远程更新
+          git pull --rebase origin main  # 重新基于远程更新应用本地更改
           git add output/adguard.txt
           git commit -m "Auto update AdGuard rules" || echo "No changes to commit"
-          git push origin main   # 推送到远程仓库
+          git push origin main  # 推送本地更改到远程仓库
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
