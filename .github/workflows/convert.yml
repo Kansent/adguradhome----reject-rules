@@ -12,14 +12,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # 允许写入仓库内容
+      contents: write
 
     steps:
-      - name: Checkout full repo
+      - name: Checkout repo
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0  # 取完整历史，确保能切换分支
+          fetch-depth: 0  # 重要，完整克隆
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -29,39 +29,29 @@ jobs:
       - name: Install dependencies
         run: pip install pyyaml
 
-      - name: Run conversion script
+      - name: Run conversion
         run: python convert.py
 
-      - name: Commit and push to release branch
+      - name: Push to release branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # 确保 release 分支存在
-          if git show-ref --verify --quiet refs/remotes/origin/release; then
-            echo "Release branch exists."
+          # 切换到 release 分支（如果不存在则创建）
+          if git show-ref --quiet refs/heads/release; then
+            git checkout release
           else
-            echo "Creating release branch..."
-            git checkout --orphan release
-            git rm -rf . > /dev/null 2>&1 || true
-            echo "# AdGuard Rules Release Branch" > README.md
-            git add README.md
-            git commit -m "Initialize release branch"
-            git push origin release
-            git checkout main
+            git checkout -b release
           fi
 
-          # 切换到 release 分支（基于远程最新版本）
-          git fetch origin release
-          git checkout release
-          git pull origin release || true
-
-          # 复制生成文件
+          # 确保 output 存在并拷贝文件
           mkdir -p output
           cp output/adguard.txt ./adguard.txt
 
           git add adguard.txt
           git commit -m "Auto update AdGuard rules [skip ci]" || echo "No changes to commit"
-          git push origin release
+
+          # 推送到 release 分支
+          git push origin release --force
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
