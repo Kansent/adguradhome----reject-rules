@@ -1,4 +1,4 @@
-name: Convert Clash reject.yaml to AdGuard
+name: Generate AdGuard Rules
 
 on:
   push:
@@ -12,14 +12,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # 必须有写权限
+      contents: write  # 允许写入仓库内容
 
     steps:
       - name: Checkout full repo
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
+          fetch-depth: 0  # 取完整历史，确保能切换分支
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -29,25 +29,39 @@ jobs:
       - name: Install dependencies
         run: pip install pyyaml
 
-      - name: Run conversion
+      - name: Run conversion script
         run: python convert.py
 
-      - name: Commit and push (safe for empty repo)
+      - name: Commit and push to release branch
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add output/adguard.txt
-          git commit -m "Auto update AdGuard rules" || echo "No changes to commit"
-
-          # 检查远程分支是否存在
-          if git ls-remote --exit-code origin main > /dev/null 2>&1; then
-            echo "Remote branch exists. Pulling and rebasing..."
-            git pull origin main --rebase || true
-            git push origin main
+          # 确保 release 分支存在
+          if git show-ref --verify --quiet refs/remotes/origin/release; then
+            echo "Release branch exists."
           else
-            echo "Remote branch does not exist. Creating it..."
-            git push origin HEAD:main --force
+            echo "Creating release branch..."
+            git checkout --orphan release
+            git rm -rf . > /dev/null 2>&1 || true
+            echo "# AdGuard Rules Release Branch" > README.md
+            git add README.md
+            git commit -m "Initialize release branch"
+            git push origin release
+            git checkout main
           fi
+
+          # 切换到 release 分支（基于远程最新版本）
+          git fetch origin release
+          git checkout release
+          git pull origin release || true
+
+          # 复制生成文件
+          mkdir -p output
+          cp output/adguard.txt ./adguard.txt
+
+          git add adguard.txt
+          git commit -m "Auto update AdGuard rules [skip ci]" || echo "No changes to commit"
+          git push origin release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
