@@ -31,14 +31,22 @@ jobs:
       - name: Run conversion
         run: python convert.py
 
-      - name: Fetch and merge remote changes
+      - name: Fetch remote changes and force push output
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git fetch origin main  # 拉取远程更新
-          git pull --rebase origin main  # 重新基于远程更新应用本地更改
+          
+          # 拉取远程仓库的更新
+          git fetch origin main
+          
+          # 拉取并基于远程更新应用本地更改
+          git pull --rebase origin main || true
+
+          # 添加更改并提交
           git add output/adguard.txt
           git commit -m "Auto update AdGuard rules" || echo "No changes to commit"
-          git push origin main  # 推送本地更改到远程仓库
+          
+          # 使用 --force-with-lease 强制推送
+          git push origin main --force-with-lease
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
