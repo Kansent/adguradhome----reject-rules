@@ -6,7 +6,7 @@ import yaml
 import os
 
 INPUT = Path("ruleset/reject.yaml")
-OUTPUT = Path("output/adguard.txt")
+OUTPUT = Path("output/reject.txt")
 
 def clash_to_adguard(line: str) -> Optional[str]:
     line = line.strip()

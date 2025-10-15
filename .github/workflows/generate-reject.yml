@@ -1,0 +1,34 @@
+name: Generate reject.txt
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "ruleset/**"
+      - "convert.py"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - run: pip install pyyaml
+      - run: python convert.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if [ ! -f output/reject.txt ]; then exit 1; fi
+          git checkout --orphan release
+          git rm -rf . > /dev/null 2>&1 || true
+          cp output/reject.txt ./reject.txt
+          git add reject.txt
+          git commit -m "Auto update reject.txt [skip ci]"
+          git push origin release --force

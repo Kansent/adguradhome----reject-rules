@@ -1,0 +1,31 @@
+name: Update upstream domains
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # 每天 UTC 00:00
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+      - run: pip install requests
+      - run: python merge_upstream.py
+      - run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          if [ ! -f output/nextdns-native-tracking-domains.txt ]; then exit 1; fi
+          git checkout --orphan release-upstream
+          git rm -rf . > /dev/null 2>&1 || true
+          cp output/nextdns-native-tracking-domains.txt ./nextdns-native-tracking-domains.txt
+          git add nextdns-native-tracking-domains.txt
+          git commit -m "Auto update upstream domains [skip ci]"
+          git push origin release-upstream --force
