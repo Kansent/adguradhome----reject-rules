@@ -12,13 +12,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # 确保有写权限
+      contents: write  # 允许写入仓库
 
     steps:
-      - name: Checkout repo
+      - name: Checkout full repo history
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0  # 👈 一定要拉完整历史，否则无法 push
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -31,22 +32,18 @@ jobs:
       - name: Run conversion
         run: python convert.py
 
-      - name: Fetch remote changes and force push output
+      - name: Commit and push output
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # 拉取远程仓库的更新
-          git fetch origin main
-          
-          # 拉取并基于远程更新应用本地更改
-          git pull --rebase origin main || true
 
-          # 添加更改并提交
+          # 确保 main 分支是最新的
+          git pull origin main --rebase || true
+
           git add output/adguard.txt
           git commit -m "Auto update AdGuard rules" || echo "No changes to commit"
-          
-          # 使用 --force-with-lease 强制推送
-          git push origin main --force-with-lease
+
+          # 推送更新
+          git push origin main
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
