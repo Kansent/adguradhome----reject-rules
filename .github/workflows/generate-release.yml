@@ -1,0 +1,110 @@
+name: Generate AdGuard Rules to release branch
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "ruleset/**"
+      - "convert.py"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo (full)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: python -m pip install --upgrade pip pyyaml
+
+      - name: Run conversion
+        run: |
+          python convert.py
+        env:
+          TZ: "UTC"
+
+      - name: Show repo status (debug)
+        run: |
+          echo "=== git status ==="
+          git status --porcelain -b || true
+          echo "=== show refs ==="
+          git show-ref || true
+          echo "=== ls-remote origin ==="
+          git ls-remote origin || true
+          echo "=== current branch ==="
+          git branch --show-current || true
+          echo "=== files in workspace ==="
+          ls -la || true
+
+      - name: Configure remote with GITHUB_TOKEN (so pushes are authenticated)
+        run: |
+          echo "Setting remote URL with token"
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
+          echo "New remote:"
+          git remote -v
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create or switch to release branch and commit file
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # ensure we have the generated file
+          if [ ! -f output/adguard.txt ]; then
+            echo "ERROR: output/adguard.txt not found!"
+            ls -la output || true
+            exit 1
+          fi
+
+          # create a temporary working branch so we do not touch main
+          git checkout -B adguard-release-work || git checkout -b adguard-release-work
+
+          # prepare file at root (you can keep in root or in path)
+          cp output/adguard.txt ./adguard.txt
+
+          git add adguard.txt
+          git commit -m "Auto update AdGuard rules [skip ci]" || echo "No changes to commit"
+
+          # If remote release exists, fetch it
+          if git ls-remote --exit-code origin refs/heads/release; then
+            echo "Remote 'release' exists. Fetching..."
+            git fetch origin release:refs/remotes/origin/release || echo "fetch failed"
+            # create or update local release from remote
+            git checkout -B release origin/release || git checkout -b release
+            # Merge our work (fast-forward or commit)
+            git merge --ff-only adguard-release-work || git merge --no-edit adguard-release-work || true
+          else
+            echo "Remote 'release' does not exist. Creating new local release branch."
+            git checkout -B release
+          fi
+
+          # Copy file into release branch
+          cp output/adguard.txt ./adguard.txt
+          git add adguard.txt
+          git commit -m "Auto update AdGuard rules [skip ci]" || echo "No changes to commit"
+
+          echo "Pushing to origin/release ..."
+          # Force-with-lease safer than force; but since this branch is dedicated, we can force
+          git push origin release --force
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Final debug print
+        run: |
+          echo "=== ls of root ==="
+          ls -la
+          echo "=== show remote release refs ==="
+          git ls-remote origin refs/heads/release || true
