@@ -12,14 +12,14 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write  # 允许写入仓库
+      contents: write  # 必须有写权限
 
     steps:
-      - name: Checkout full repo history
+      - name: Checkout full repo
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0  # 👈 一定要拉完整历史，否则无法 push
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -32,18 +32,22 @@ jobs:
       - name: Run conversion
         run: python convert.py
 
-      - name: Commit and push output
+      - name: Commit and push (safe for empty repo)
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # 确保 main 分支是最新的
-          git pull origin main --rebase || true
-
           git add output/adguard.txt
           git commit -m "Auto update AdGuard rules" || echo "No changes to commit"
 
-          # 推送更新
-          git push origin main
+          # 检查远程分支是否存在
+          if git ls-remote --exit-code origin main > /dev/null 2>&1; then
+            echo "Remote branch exists. Pulling and rebasing..."
+            git pull origin main --rebase || true
+            git push origin main
+          else
+            echo "Remote branch does not exist. Creating it..."
+            git push origin HEAD:main --force
+          fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
