@@ -1,4 +1,4 @@
-name: Generate reject.txt
+name: Generate AdGuard Release
 
 on:
   push:
@@ -14,45 +14,44 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-python@v5
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.x"
 
       - name: Install dependencies
-        run: pip install pyyaml
+        run: python -m pip install --upgrade pip pyyaml
 
-      - name: Generate reject.txt
+      - name: Run conversion
         run: python convert.py
 
-      - name: Merge into release safely
+      - name: Push to release branch (clean branch)
         run: |
-          set -e
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          if [ ! -f output/reject.txt ]; then
-            echo "❌ Error: output/reject.txt not found"
+          # 检查文件
+          if [ ! -f output/adguard.txt ]; then
+            echo "ERROR: output/adguard.txt not found!"
             exit 1
           fi
 
-          # 拉取 release 分支到本地
-          git fetch origin release:release || true
-          git checkout release || git checkout -b release
-          git merge origin/release || true  # <-- 保留 release 原有文件
+          # 创建孤立 release 分支，不继承 main 内容
+          git checkout --orphan release
+          git rm -rf . > /dev/null 2>&1 || true
 
-          # 覆盖新的 reject.txt
-          cp output/reject.txt ./reject.txt
-          git add reject.txt
+          # 拷贝生成文件
+          mkdir -p output
+          cp output/adguard.txt ./adguard.txt
 
-          # 仅在有变更时提交
-          if git diff --cached --quiet; then
-            echo "ℹ️ No changes detected, skipping commit."
-          else
-            git commit -m "Auto update reject.txt [skip ci]"
-            git push origin release
-          fi
+          # 提交并推送
+          git add adguard.txt
+          git commit -m "Auto update AdGuard rules [skip ci]"
+          git push origin release --force

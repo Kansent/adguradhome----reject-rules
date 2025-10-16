@@ -2,7 +2,7 @@ name: Update upstream domains
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # 每天 UTC 00:00 自动执行
+    - cron: '0 0 * * *'  # 每天 UTC 00:00
   workflow_dispatch:
 
 permissions:
@@ -14,22 +14,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0
-
+          fetch-depth: 0  # ✅ 确保完整拉取仓库
+      - run: ls -R        # 🧩 列出所有文件，确认 merge_upstream.py 存在
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
-
-      - name: Install dependencies
-        run: pip install requests
-
-      - name: Merge upstream domain lists
-        run: python merge_upstream.py
-
-      - name: Push to release branch
-        run: |
-          set -e
-
+      - run: pip install requests
+      - run: python merge_upstream.py
+      - run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
@@ -38,19 +30,9 @@ jobs:
             exit 1
           fi
 
-          # 拉取并切换到 release 分支
-          git fetch origin release || true
-          git checkout release || git checkout -b release
-          git pull origin release || true
-
-          # 复制文件（不清空其他文件）
+          git checkout --orphan release-upstream
+          git rm -rf . > /dev/null 2>&1 || true
           cp output/nextdns-native-tracking-domains.txt ./nextdns-native-tracking-domains.txt
           git add nextdns-native-tracking-domains.txt
-
-          # 检查是否有变更
-          if git diff --cached --quiet; then
-            echo "ℹ️ No changes detected, skipping commit."
-          else
-            git commit -m "Auto update upstream domains [skip ci]"
-            git push origin release
-          fi
+          git commit -m "Auto update upstream domains [skip ci]"
+          git push origin release-upstream --force
