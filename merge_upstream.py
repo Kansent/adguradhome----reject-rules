@@ -1,36 +1,45 @@
 from pathlib import Path
-from datetime import datetime
 import requests
+from datetime import datetime
 
-UPSTREAM_URLS = [
+OUTPUT = Path("output/nextdns-native-tracking-domains.txt")
+OUTPUT.parent.mkdir(exist_ok=True)
+
+URLS = [
     "https://raw.githubusercontent.com/nextdns/native-tracking-domains/refs/heads/main/domains/windows",
     "https://raw.githubusercontent.com/nextdns/native-tracking-domains/refs/heads/main/domains/apple",
     "https://raw.githubusercontent.com/nextdns/native-tracking-domains/refs/heads/main/domains/samsung",
     "https://raw.githubusercontent.com/nextdns/native-tracking-domains/refs/heads/main/domains/xiaomi",
 ]
 
-OUTPUT = Path("output/nextdns-native-tracking-domains.txt")
-
-def download_domains(url):
-    resp = requests.get(url, timeout=10)
-    resp.raise_for_status()
-    lines = [line.strip() for line in resp.text.splitlines() if line.strip() and not line.startswith("#")]
-    return lines
+def fetch_url(url):
+    print(f"⬇️ Fetching {url}")
+    r = requests.get(url, timeout=20)
+    r.raise_for_status()
+    return r.text.splitlines()
 
 def main():
-    all_domains = set()
-    for url in UPSTREAM_URLS:
-        all_domains.update(download_domains(url))
+    domains = set()
+    for url in URLS:
+        try:
+            domains.update(fetch_url(url))
+        except Exception as e:
+            print(f"⚠️ Failed to fetch {url}: {e}")
 
-    rules = [f"||{d}^" for d in sorted(all_domains)]
+    domains = sorted(d.strip() for d in domains if d.strip() and not d.startswith("#"))
 
-    OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-    content = "\n".join(rules)
-    size_kb = len(content.encode("utf-8")) // 1024
-    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%SZ")
-    header = f"# Last update: {timestamp} | Size: {size_kb} KB\n"
-    OUTPUT.write_text(header + content + ("\n" if rules else ""), encoding="utf-8")
-    print(f"✅ Merged {len(rules)} upstream domains -> {OUTPUT}")
+    # 生成头部信息
+    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+    size_kb = round(len("\n".join(domains)) / 1024, 2)
+    header = [
+        f"# NextDNS native tracking domains",
+        f"# Last update: {timestamp}",
+        f"# Total domains: {len(domains)} ({size_kb} KB)",
+        "",
+    ]
+
+    OUTPUT.write_text("\n".join(header + domains), encoding="utf-8")
+    print(f"✅ Generated {OUTPUT} with {len(domains)} domains.")
 
 if __name__ == "__main__":
     main()

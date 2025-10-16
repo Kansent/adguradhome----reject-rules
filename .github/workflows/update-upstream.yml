@@ -2,7 +2,7 @@ name: Update upstream domains
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # 每天 UTC 00:00
+    - cron: '0 0 * * *'  # 每天 UTC 00:00 自动执行
   workflow_dispatch:
 
 permissions:
@@ -15,16 +15,21 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - run: ls -R  # 调试，可看到目录结构
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
-      - run: pip install requests
-      - run: python merge_upstream.py
 
-      # === 上传到 release 分支 ===
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Merge upstream domain lists
+        run: python merge_upstream.py
+
       - name: Push to release branch
         run: |
+          set -e
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
@@ -33,15 +38,16 @@ jobs:
             exit 1
           fi
 
-          # 切换到 release 分支（如果不存在则创建）
+          # 拉取并切换到 release 分支
           git fetch origin release || true
           git checkout release || git checkout -b release
+          git pull origin release || true
 
-          # 确保有最新的 reject.txt（不删）
+          # 复制文件（不清空其他文件）
           cp output/nextdns-native-tracking-domains.txt ./nextdns-native-tracking-domains.txt
           git add nextdns-native-tracking-domains.txt
 
-          # 仅在有变化时提交
+          # 检查是否有变更
           if git diff --cached --quiet; then
             echo "ℹ️ No changes detected, skipping commit."
           else
