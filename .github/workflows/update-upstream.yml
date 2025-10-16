@@ -13,6 +13,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: ls -R
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
@@ -22,7 +25,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          if [ ! -f output/nextdns-native-tracking-domains.txt ]; then exit 1; fi
+          if [ ! -f output/nextdns-native-tracking-domains.txt ]; then
+            echo "❌ Error: output file not found"
+            exit 1
+          fi
+
           git checkout --orphan release-upstream
           git rm -rf . > /dev/null 2>&1 || true
           cp output/nextdns-native-tracking-domains.txt ./nextdns-native-tracking-domains.txt
