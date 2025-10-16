@@ -18,32 +18,47 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
-      - run: pip install pyyaml
-      - run: python convert.py
 
-      - name: Push reject.txt to release branch (safe merge)
+      - name: Install dependencies
+        run: pip install pyyaml
+
+      - name: Generate AdGuard rules
+        run: python convert.py
+
+      - name: Commit to release branch (safe merge)
         run: |
+          set -e
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          # 确认文件存在
           if [ ! -f output/reject.txt ]; then
-            echo "❌ Error: output file not found"
+            echo "❌ Error: output/reject.txt not found"
             exit 1
           fi
 
-          # 拉取 release 分支并保持文件
-          git fetch origin release
-          git checkout release
-          git pull origin release
+          # 创建临时目录
+          mkdir temp
+          cp output/reject.txt temp/reject.txt
 
-          # 更新 reject.txt（不删除其他文件）
-          cp output/reject.txt ./reject.txt
+          # 拉取 release 分支完整内容
+          git fetch origin release:release || git checkout -b release
+          git checkout release
+
+          # 恢复 release 分支的文件（包括上游生成的 txt）
+          git pull origin release || true
+
+          # 把新的 reject.txt 覆盖进来
+          cp temp/reject.txt ./reject.txt
+          rm -rf temp
+
           git add reject.txt
 
-          # 若有变更则提交
+          # 检查是否有变化
           if git diff --cached --quiet; then
             echo "ℹ️ No changes detected, skipping commit."
           else
