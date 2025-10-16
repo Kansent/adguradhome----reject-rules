@@ -18,6 +18,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: true
 
       - uses: actions/setup-python@v5
         with:
@@ -29,38 +30,46 @@ jobs:
       - name: Generate AdGuard rules
         run: python convert.py
 
-      - name: Commit to release branch (safe merge)
+      - name: Merge into release branch safely
         run: |
           set -e
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # 确认文件存在
           if [ ! -f output/reject.txt ]; then
             echo "❌ Error: output/reject.txt not found"
             exit 1
           fi
 
-          # 创建临时目录
-          mkdir temp
+          # 临时保存生成的文件
+          mkdir -p temp
           cp output/reject.txt temp/reject.txt
 
-          # 拉取 release 分支完整内容
-          git fetch origin release:release || git checkout -b release
-          git checkout release
+          # 拉取远程所有分支信息
+          git fetch origin +refs/heads/*:refs/remotes/origin/*
 
-          # 恢复 release 分支的文件（包括上游生成的 txt）
-          git pull origin release || true
+          # 检查 release 分支是否存在
+          if git show-ref --verify --quiet refs/remotes/origin/release; then
+            echo "✅ Release branch exists, checking out"
+            git checkout -B release origin/release
+          else
+            echo "🆕 Release branch does not exist, creating new"
+            git checkout --orphan release
+            git rm -rf . > /dev/null 2>&1 || true
+          fi
 
-          # 把新的 reject.txt 覆盖进来
+          # 恢复旧文件（如果存在）
+          git reset --hard origin/release || true
+
+          # 复制新的 reject.txt
           cp temp/reject.txt ./reject.txt
           rm -rf temp
 
           git add reject.txt
 
-          # 检查是否有变化
+          # 只在文件有变化时提交
           if git diff --cached --quiet; then
-            echo "ℹ️ No changes detected, skipping commit."
+            echo "ℹ️ No changes detected, skip commit."
           else
             git commit -m "Auto update reject.txt [skip ci]"
             git push origin release
