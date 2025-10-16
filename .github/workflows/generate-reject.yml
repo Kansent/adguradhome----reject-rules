@@ -16,19 +16,34 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
       - run: pip install pyyaml
       - run: python convert.py
-      - run: |
+
+      - name: Push to release branch
+        run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          if [ ! -f output/reject.txt ]; then exit 1; fi
-          git checkout --orphan release
-          git rm -rf . > /dev/null 2>&1 || true
+          if [ ! -f output/reject.txt ]; then
+            echo "❌ Error: output file not found"
+            exit 1
+          fi
+
+          git fetch origin release || true
+          git checkout release || git checkout -b release
+
+          # 不删除 nextdns 文件
           cp output/reject.txt ./reject.txt
           git add reject.txt
-          git commit -m "Auto update reject.txt [skip ci]"
-          git push origin release --force
+
+          if git diff --cached --quiet; then
+            echo "ℹ️ No changes detected, skipping commit."
+          else
+            git commit -m "Auto update reject.txt [skip ci]"
+            git push origin release
+          fi
