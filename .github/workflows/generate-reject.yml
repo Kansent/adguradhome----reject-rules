@@ -15,59 +15,37 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      # 1️⃣ Checkout 仓库完整内容
+      # 1️⃣ Checkout release 分支完整内容（如果不存在就创建）
       - uses: actions/checkout@v4
         with:
+          ref: release
           fetch-depth: 0
           persist-credentials: true
 
-      # 2️⃣ 设置 Python 环境
+      # 2️⃣ 设置 Python
       - uses: actions/setup-python@v5
         with:
           python-version: "3.x"
 
       # 3️⃣ 安装依赖
-      - name: Install dependencies
-        run: pip install pyyaml
+      - run: pip install pyyaml
 
       # 4️⃣ 生成 reject.txt
-      - name: Generate reject.txt
-        run: python convert.py
+      - run: python convert.py
 
-      # 5️⃣ 合并到 release 分支
-      - name: Merge into release safely
-        run: |
-          set -e
+      # 5️⃣ 覆盖 reject.txt
+      - run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # 检查生成文件
           if [ ! -f output/reject.txt ]; then
-            echo "❌ Error: output/reject.txt not found"
+            echo "❌ output/reject.txt not found"
             exit 1
           fi
 
-          # 临时保存生成文件
-          mkdir -p temp
-          cp output/reject.txt temp/reject.txt
-
-          # 拉取 release 分支
-          git fetch origin release:release || true
-
-          # 切换到 release 分支，如果不存在就创建
-          git checkout release || git checkout -b release
-
-          # 合并远程 release 内容到工作区（保留现有文件）
-          git merge origin/release --allow-unrelated-histories -X theirs || true
-
-          # 覆盖 reject.txt
-          cp temp/reject.txt ./reject.txt
-          rm -rf temp
-
-          # 只 add reject.txt，避免删除其他文件
+          cp output/reject.txt ./reject.txt
           git add reject.txt
 
-          # 仅在有变更时提交
           if git diff --cached --quiet; then
             echo "ℹ️ No changes detected, skipping commit."
           else
