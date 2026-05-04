@@ -38,7 +38,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
           # 检查文件
-          if [ ! -f output/adguard.txt ]; then
+          if [ ! -f output/reject.txt ]; then
             echo "ERROR: output/reject.txt not found!"
             exit 1
           fi
