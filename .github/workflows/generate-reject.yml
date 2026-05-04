@@ -52,6 +52,6 @@ jobs:
           cp output/reject.txt ./reject.txt
 
           # 提交并推送
-          git add adguard.txt
+          git add reject.txt
           git commit -m "Auto update AdGuard rules [skip ci]"
           git push origin release --force
